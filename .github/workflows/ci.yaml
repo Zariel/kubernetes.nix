@@ -23,10 +23,10 @@ jobs:
     outputs:
       minors: ${{ steps.matrix.outputs.minors }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
-      - uses: DeterminateSystems/nix-installer-action@v22
+      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
       - name: Validate catalogue and append-only history
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -73,11 +73,11 @@ jobs:
         minor: ${{ fromJSON(needs.validate.outputs.minors) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: DeterminateSystems/nix-installer-action@v22
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
       - name: Configure optional Cachix cache
         if: env.CACHIX_CACHE_NAME != ''
-        uses: cachix/cachix-action@v17
+        uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
         with:
           name: ${{ env.CACHIX_CACHE_NAME }}
           authToken: ${{ env.CACHIX_AUTH_TOKEN }}
@@ -92,6 +92,36 @@ jobs:
             ".#$attribute.kubelet" \
             ".#$attribute.kubectl" \
             --no-link --print-build-logs
+      - name: Verify component versions
+        env:
+          MINOR: ${{ matrix.minor }}
+        run: |
+          attribute="kubernetes_${MINOR//./_}"
+          expected="v$(jq -r .version "versions/$MINOR.json")"
+
+          kubeadm_path=$(nix build ".#$attribute.kubeadm" --no-link --print-out-paths)
+          kubelet_path=$(nix build ".#$attribute.kubelet" --no-link --print-out-paths)
+          kubectl_path=$(nix build ".#$attribute.kubectl" --no-link --print-out-paths)
+
+          kubeadm_version=$("$kubeadm_path/bin/kubeadm" version -o short)
+          kubelet_version=$("$kubelet_path/bin/kubelet" --version)
+          kubectl_version=$(
+            "$kubectl_path/bin/kubectl" version --client=true --output=json |
+              jq -r .clientVersion.gitVersion
+          )
+
+          if [[ "$kubeadm_version" != "$expected" ]]; then
+            echo "kubeadm reported $kubeadm_version, expected $expected" >&2
+            exit 1
+          fi
+          if [[ "$kubelet_version" != "Kubernetes $expected" ]]; then
+            echo "kubelet reported $kubelet_version, expected Kubernetes $expected" >&2
+            exit 1
+          fi
+          if [[ "$kubectl_version" != "$expected" ]]; then
+            echo "kubectl reported $kubectl_version, expected $expected" >&2
+            exit 1
+          fi
 
   gate:
     name: CI passed

@@ -88,6 +88,12 @@ class ChangedMinorTests(unittest.TestCase):
             changed.all_minors(),
         )
 
+    def test_ci_workflow_change_selects_entire_catalogue(self):
+        self.assertEqual(
+            changed.select_minors([".github/workflows/ci.yaml"]),
+            changed.all_minors(),
+        )
+
     def test_docs_change_does_not_rebuild_kubernetes(self):
         self.assertEqual(changed.select_minors(["README.md"]), [])
 
