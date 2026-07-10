@@ -1,9 +1,12 @@
 import importlib.util
 import json
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 
 def load_script(name: str):
@@ -18,6 +21,8 @@ def load_script(name: str):
 
 validate = load_script("validate-versions.py")
 changed = load_script("changed-minors.py")
+add_minor = load_script("add-new-minor.py")
+upstream = load_script("list-upstream-releases.py")
 
 
 class VersionValidationTests(unittest.TestCase):
@@ -85,6 +90,56 @@ class ChangedMinorTests(unittest.TestCase):
 
     def test_docs_change_does_not_rebuild_kubernetes(self):
         self.assertEqual(changed.select_minors(["README.md"]), [])
+
+
+class ReleaseDiscoveryTests(unittest.TestCase):
+    def test_selects_latest_stable_patch_for_each_minor(self):
+        releases = [
+            {"tag_name": "v1.36.1", "draft": False, "prerelease": False},
+            {"tag_name": "v1.36.3", "draft": False, "prerelease": False},
+            {"tag_name": "v1.36.2", "draft": False, "prerelease": False},
+            {"tag_name": "v1.37.0-rc.1", "draft": False, "prerelease": True},
+            {"tag_name": "v1.37.0", "draft": False, "prerelease": False},
+            {"tag_name": "v1.38.0", "draft": True, "prerelease": False},
+        ]
+
+        self.assertEqual(
+            upstream.newest_stable_releases(releases),
+            {"1.36": "1.36.3", "1.37": "1.37.0"},
+        )
+
+    def test_adds_only_newer_missing_minors_without_touching_existing_files(self):
+        with tempfile.TemporaryDirectory() as raw_directory:
+            versions = Path(raw_directory) / "versions"
+            versions.mkdir()
+            existing = versions / "1.36.json"
+            existing.write_text('{"sentinel": true}\n')
+            releases = {
+                "1.35": "1.35.9",
+                "1.36": "1.36.3",
+                "1.37": "1.37.1",
+                "1.38": "1.38.0",
+            }
+            helper = SimpleNamespace(fetch_releases=lambda: releases)
+
+            with (
+                mock.patch.object(add_minor, "load_release_helper", return_value=helper),
+                mock.patch.object(
+                    sys,
+                    "argv",
+                    ["add-new-minor.py", "--versions", str(versions)],
+                ),
+            ):
+                self.assertEqual(add_minor.main(), 0)
+
+            self.assertEqual(existing.read_text(), '{"sentinel": true}\n')
+            self.assertFalse((versions / "1.35.json").exists())
+            for minor, version in (("1.37", "1.37.1"), ("1.38", "1.38.0")):
+                data = json.loads((versions / f"{minor}.json").read_text())
+                self.assertEqual(data["minor"], minor)
+                self.assertEqual(data["version"], version)
+                self.assertEqual(data["srcHash"], add_minor.FAKE_HASH)
+                self.assertIsNone(data["vendorHash"])
 
 
 class AppendOnlyHistoryTests(unittest.TestCase):
