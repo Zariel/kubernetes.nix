@@ -33,6 +33,22 @@ jobs:
             branch=$(gh pr view "$number" --repo "$REPOSITORY" --json headRefName --jq .headRefName)
             label=$(gh pr view "$number" --repo "$REPOSITORY" --json labels --jq '.labels[] | select(.name == "automerge") | .name')
             if [[ "$label" == "automerge" && ( "$branch" == renovate/* || "$branch" == automation/* ) ]]; then
-              gh pr merge "$number" --repo "$REPOSITORY" --squash --delete-branch
+              merge_state=$(gh pr view "$number" --repo "$REPOSITORY" --json mergeStateStatus --jq .mergeStateStatus)
+              if [[ "$merge_state" == "BEHIND" ]]; then
+                gh pr update-branch "$number" --repo "$REPOSITORY"
+                continue
+              fi
+              merged=$(
+                gh api \
+                  --method PUT \
+                  "repos/$REPOSITORY/pulls/$number/merge" \
+                  --raw-field merge_method=squash \
+                  --raw-field sha="$HEAD_SHA" \
+                  --jq .merged
+              )
+              if [[ "$merged" != "true" ]]; then
+                echo "GitHub did not merge PR #$number" >&2
+                exit 1
+              fi
             fi
           done
