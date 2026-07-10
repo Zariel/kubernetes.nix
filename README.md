@@ -12,9 +12,10 @@ patch release. There is no moving `pkgs.kubernetes` alias.
 
 > The catalogue updates automatically. Hosts upgrade deliberately.
 
-This is intended for kubeadm-managed nodes, where minor upgrades must be
-coordinated with Kubernetes version-skew rules, etcd snapshots, CNI/CSI
-compatibility, control-plane upgrades, and kubelet restarts.
+This is intended for self-managed Kubernetes nodes, whether they use kubeadm
+or run the individual control-plane components directly. Minor upgrades must
+still be coordinated with Kubernetes version-skew rules, etcd snapshots,
+CNI/CSI compatibility, control-plane upgrades, and kubelet restarts.
 
 ## Use with NixOS
 
@@ -78,17 +79,25 @@ If your system passes its own `pkgs` instance to `nixosSystem`, add
 Every minor exposes:
 
 ```nix
+pkgs.kubernetes_1_36.cloud-controller-manager
+pkgs.kubernetes_1_36.kube-apiserver
+pkgs.kubernetes_1_36.kube-controller-manager
+pkgs.kubernetes_1_36.kube-proxy
+pkgs.kubernetes_1_36.kube-scheduler
 pkgs.kubernetes_1_36.kubeadm
-pkgs.kubernetes_1_36.kubelet
 pkgs.kubernetes_1_36.kubectl
-pkgs.kubernetes_1_36.kubernetes # bundle containing all three binaries
+pkgs.kubernetes_1_36.kubelet
+pkgs.kubernetes_1_36.kubernetes # bundle containing every component binary
 ```
+
+The control-plane and proxy packages can be used directly by installations
+that do not use kubeadm.
 
 The same attributes can be built directly from the flake:
 
 ```bash
+nix build github:Zariel/kubernetes.nix#kubernetes_1_36.kube-apiserver
 nix build github:Zariel/kubernetes.nix#kubernetes_1_36.kubeadm
-nix build github:Zariel/kubernetes.nix#kubernetes_1_36.kubelet
 nix build github:Zariel/kubernetes.nix#kubernetes_1_36.kubectl
 ```
 
@@ -133,9 +142,9 @@ upgrade the control plane, update or restart kubelet, and validate workloads.
 
 ## Scope and support
 
-This repository packages Kubernetes binaries. It does not run kubeadm, manage
-`/etc/kubernetes`, install a CNI, manage cluster objects, or take etcd
-snapshots.
+This repository packages Kubernetes binaries. It does not configure or run
+the components, manage `/etc/kubernetes`, install a CNI, manage cluster
+objects, or take etcd snapshots.
 
 `x86_64-linux` packages are built and executed in CI. `aarch64-linux` is
 exposed and evaluated but is not currently built in CI.

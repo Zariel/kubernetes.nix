@@ -12,6 +12,19 @@
 let
   inherit (versionData) version srcHash;
 
+  componentDescriptions = {
+    cloud-controller-manager = "Kubernetes cloud controller manager";
+    kube-apiserver = "Kubernetes API server";
+    kube-controller-manager = "Kubernetes controller manager";
+    kube-proxy = "Kubernetes network proxy";
+    kube-scheduler = "Kubernetes scheduler";
+    kubeadm = "Tool for bootstrapping Kubernetes clusters";
+    kubectl = "Kubernetes command-line client";
+    kubelet = "Kubernetes node agent";
+  };
+
+  componentNames = builtins.attrNames componentDescriptions;
+
   kubernetes = buildGoModule {
     pname = "kubernetes";
     inherit version;
@@ -32,7 +45,7 @@ let
       which
       rsync
     ];
-    env.WHAT = "cmd/kubeadm cmd/kubelet cmd/kubectl";
+    env.WHAT = lib.concatMapStringsSep " " (component: "cmd/${component}") componentNames;
 
     buildPhase = ''
       runHook preBuild
@@ -43,14 +56,14 @@ let
 
     installPhase = ''
       runHook preInstall
-      for component in kubeadm kubelet kubectl; do
+      for component in ${lib.escapeShellArgs componentNames}; do
         install -D "_output/local/go/bin/$component" "$out/bin/$component"
       done
       runHook postInstall
     '';
 
     meta = {
-      description = "Version-pinned Kubernetes command-line tools";
+      description = "Version-pinned Kubernetes component binaries";
       homepage = "https://kubernetes.io";
       license = lib.licenses.asl20;
       platforms = lib.platforms.linux;
@@ -71,11 +84,13 @@ let
         mkdir -p "$out/bin"
         ln -s "${kubernetes}/bin/${component}" "$out/bin/${component}"
       '';
+
+  componentPackages = lib.mapAttrs mkComponent componentDescriptions;
 in
-lib.extendDerivation true {
-  recurseForDerivations = true;
-  inherit kubernetes;
-  kubeadm = mkComponent "kubeadm" "Tool for bootstrapping Kubernetes clusters";
-  kubelet = mkComponent "kubelet" "Kubernetes node agent";
-  kubectl = mkComponent "kubectl" "Kubernetes command-line client";
-} kubernetes
+lib.extendDerivation true (
+  {
+    recurseForDerivations = true;
+    inherit kubernetes;
+  }
+  // componentPackages
+) kubernetes

@@ -82,16 +82,26 @@ jobs:
           name: ${{ env.CACHIX_CACHE_NAME }}
           authToken: ${{ env.CACHIX_AUTH_TOKEN }}
           skipPush: ${{ env.CACHIX_AUTH_TOKEN == '' }}
-      - name: Build kubeadm, kubelet, and kubectl
+      - name: Build Kubernetes components
         env:
           MINOR: ${{ matrix.minor }}
         run: |
           attribute="kubernetes_${MINOR//./_}"
-          nix build \
-            ".#$attribute.kubeadm" \
-            ".#$attribute.kubelet" \
-            ".#$attribute.kubectl" \
-            --no-link --print-build-logs
+          components=(
+            cloud-controller-manager
+            kube-apiserver
+            kube-controller-manager
+            kube-proxy
+            kube-scheduler
+            kubeadm
+            kubectl
+            kubelet
+          )
+          installables=()
+          for component in "${components[@]}"; do
+            installables+=(".#$attribute.$component")
+          done
+          nix build "${installables[@]}" --no-link --print-build-logs
       - name: Verify component versions
         env:
           MINOR: ${{ matrix.minor }}
@@ -100,11 +110,9 @@ jobs:
           expected="v$(jq -r .version "versions/$MINOR.json")"
 
           kubeadm_path=$(nix build ".#$attribute.kubeadm" --no-link --print-out-paths)
-          kubelet_path=$(nix build ".#$attribute.kubelet" --no-link --print-out-paths)
           kubectl_path=$(nix build ".#$attribute.kubectl" --no-link --print-out-paths)
 
           kubeadm_version=$("$kubeadm_path/bin/kubeadm" version -o short)
-          kubelet_version=$("$kubelet_path/bin/kubelet" --version)
           kubectl_version=$(
             "$kubectl_path/bin/kubectl" version --client=true --output=json |
               jq -r .clientVersion.gitVersion
@@ -114,14 +122,27 @@ jobs:
             echo "kubeadm reported $kubeadm_version, expected $expected" >&2
             exit 1
           fi
-          if [[ "$kubelet_version" != "Kubernetes $expected" ]]; then
-            echo "kubelet reported $kubelet_version, expected Kubernetes $expected" >&2
-            exit 1
-          fi
           if [[ "$kubectl_version" != "$expected" ]]; then
             echo "kubectl reported $kubectl_version, expected $expected" >&2
             exit 1
           fi
+
+          components=(
+            cloud-controller-manager
+            kube-apiserver
+            kube-controller-manager
+            kube-proxy
+            kube-scheduler
+            kubelet
+          )
+          for component in "${components[@]}"; do
+            path=$(nix build ".#$attribute.$component" --no-link --print-out-paths)
+            actual=$("$path/bin/$component" --version)
+            if [[ "$actual" != "Kubernetes $expected" ]]; then
+              echo "$component reported $actual, expected Kubernetes $expected" >&2
+              exit 1
+            fi
+          done
 
   gate:
     name: CI passed
