@@ -97,7 +97,7 @@ The workflows authenticate as a dedicated GitHub App, following the same short-l
 
 Grant the app read/write access to repository contents, pull requests, issues, commit statuses, workflows, and Actions. Each workflow mints a token scoped to this repository; the action revokes it at job completion. App-authored PR and push events trigger CI normally, unlike changes made with the repository's built-in `GITHUB_TOKEN`.
 
-The workflows create their required labels idempotently. The `main` branch requires a pull request and the stable `CI passed` gate; direct pushes are rejected. The merge workflow only accepts a passing `CI` run for the exact head commit, the `automerge` label, and a `renovate/` or `automation/` source branch. If an automation PR falls behind `main`, the workflow updates its branch and waits for CI to pass again before merging.
+The workflows create their required labels idempotently. The `main` branch requires a pull request and the stable `CI passed` gate; direct pushes are rejected. The merge workflow only accepts a passing `CI` run for the exact head commit, the `automerge` label, and a `renovate/` or `automation/` source branch. If an automation PR falls behind `main`, the workflow updates its branch and waits for CI to pass again before merging. GitHub deletes merged head branches automatically.
 
 Automation is split into four workflows:
 
