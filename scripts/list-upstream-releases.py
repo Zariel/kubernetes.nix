@@ -15,6 +15,21 @@ def version_key(version: str) -> tuple[int, int, int]:
     return tuple(int(part) for part in version.split("."))
 
 
+def newest_stable_releases(releases: list[dict[str, object]]) -> dict[str, str]:
+    newest: dict[str, str] = {}
+    for release in releases:
+        if release.get("draft") or release.get("prerelease"):
+            continue
+        match = VERSION_RE.fullmatch(str(release.get("tag_name", "")))
+        if not match:
+            continue
+        version = match.group(1)
+        minor = version.rsplit(".", 1)[0]
+        if minor not in newest or version_key(version) > version_key(newest[minor]):
+            newest[minor] = version
+    return dict(sorted(newest.items(), key=lambda item: version_key(item[1])))
+
+
 def fetch_releases() -> dict[str, str]:
     headers = {
         "Accept": "application/vnd.github+json",
@@ -27,19 +42,9 @@ def fetch_releases() -> dict[str, str]:
     request = urllib.request.Request(API_URL, headers=headers)
     with urllib.request.urlopen(request, timeout=30) as response:
         releases = json.load(response)
-
-    newest: dict[str, str] = {}
-    for release in releases:
-        if release.get("draft") or release.get("prerelease"):
-            continue
-        match = VERSION_RE.fullmatch(release.get("tag_name", ""))
-        if not match:
-            continue
-        version = match.group(1)
-        minor = version.rsplit(".", 1)[0]
-        if minor not in newest or version_key(version) > version_key(newest[minor]):
-            newest[minor] = version
-    return dict(sorted(newest.items(), key=lambda item: version_key(item[1])))
+    if not isinstance(releases, list):
+        raise ValueError("GitHub releases response must be a list")
+    return newest_stable_releases(releases)
 
 
 def main() -> int:
