@@ -14,9 +14,6 @@
   },
   "dependencyDashboard": false,
   "prConcurrentLimit": 5,
-  "schedule": [
-    "before 6am"
-  ],
   "customManagers": [
     {
       "customType": "regex",
@@ -72,6 +69,9 @@
         "github-actions",
         "nix"
       ],
+      "schedule": [
+        "* 0-5 * * *"
+      ],
       "addLabels": [
         "automerge",
         "dependencies"
@@ -91,7 +91,7 @@
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": [
-      "before 5am"
+      "* 0-4 * * *"
     ]
   }
 }
