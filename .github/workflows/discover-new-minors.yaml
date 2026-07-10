@@ -2,7 +2,7 @@ name: Discover new Kubernetes minors
 
 on:
   schedule:
-    - cron: "41 5 * * *"
+    - cron: "41 * * * *"
   workflow_dispatch:
 
 permissions:
