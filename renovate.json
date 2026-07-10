@@ -49,8 +49,10 @@
       "matchUpdateTypes": [
         "patch"
       ],
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash",
       "addLabels": [
-        "automerge",
         "kubernetes-patch"
       ],
       "postUpgradeTasks": {
@@ -72,8 +74,10 @@
       "schedule": [
         "* 0-5 * * *"
       ],
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash",
       "addLabels": [
-        "automerge",
         "dependencies"
       ]
     },
@@ -82,8 +86,10 @@
       "matchUpdateTypes": [
         "lockFileMaintenance"
       ],
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash",
       "addLabels": [
-        "automerge",
         "nixpkgs"
       ]
     }

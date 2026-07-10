@@ -28,7 +28,6 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          gh label create automerge --color 0e8a16 --description "Merge after CI passes" --force
           gh label create kubernetes-patch --color 1d76db --description "Automated Kubernetes patch update" --force
           gh label create dependencies --color 0366d6 --description "Dependency update" --force
           gh label create nixpkgs --color 7e7eff --description "nixpkgs input update" --force
