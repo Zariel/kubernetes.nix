@@ -97,7 +97,7 @@ The workflows authenticate as a dedicated GitHub App, following the same short-l
 
 Grant the app read/write access to repository contents, pull requests, issues, commit statuses, workflows, and Actions. Each workflow mints a token scoped to this repository; the action revokes it at job completion. App-authored PR and push events trigger CI normally, unlike changes made with the repository's built-in `GITHUB_TOKEN`.
 
-The workflows create their required labels idempotently. Protect `main` against direct pushes. The merge workflow only accepts a passing `CI` run for the exact head commit, the `automerge` label, and a `renovate/` or `automation/` source branch.
+The workflows create their required labels idempotently. The `main` branch requires a pull request and the stable `CI passed` gate; direct pushes are rejected. The merge workflow only accepts a passing `CI` run for the exact head commit, the `automerge` label, and a `renovate/` or `automation/` source branch.
 
 Automation is split into four workflows:
 
@@ -110,7 +110,7 @@ Renovate is self-hosted in Actions because its post-upgrade task needs Nix to ca
 
 ## Binary cache
 
-The normal Nix cache remains enabled. To publish these relatively expensive builds to Cachix, set the repository variable `CACHIX_CACHE_NAME` and secret `CACHIX_AUTH_TOKEN`; CI automatically enables the cache when the token is present. Consumers can then configure the cache documented by that Cachix instance as an extra substituter and trusted public key. A binary cache is recommended but not required.
+The normal Nix cache remains enabled. To use Cachix for these relatively expensive builds, set the repository variable `CACHIX_CACHE_NAME`. CI and fork pull requests can then read from a public cache without a secret. Add the `CACHIX_AUTH_TOKEN` repository secret to publish successful builds from trusted branches and same-repository automation PRs. Consumers can configure the cache documented by that Cachix instance as an extra substituter and trusted public key. A binary cache is recommended but not required; GitHub's generic dependency cache is deliberately not used for `/nix/store`.
 
 ## Local development
 
