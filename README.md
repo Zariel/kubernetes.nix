@@ -119,7 +119,7 @@ Automation is split into four workflows:
 
 - `Renovate` runs daily. It updates patches, refreshes hashes, maintains `flake.lock` daily against `nixpkgs-unstable`, and updates Actions.
 - `Discover new Kubernetes minors` runs daily and adds only minors newer than the current highest catalogue entry.
-- `CI` validates JSON and append-only history, checks the flake, and builds changed minors. Pushes, schedules, and manual runs build the full matrix.
+- `CI` validates JSON and append-only history, checks the flake, builds changed minors, and verifies the reported kubeadm, kubelet, and kubectl versions. Pushes, schedules, and manual runs build the full matrix.
 - `Merge passing automation PRs` merges only labelled automation branches after CI succeeds.
 
 Renovate runs from the repository's locked nixpkgs input, so its executable is reproducible and normally substituted from `cache.nixos.org`. Running it directly on the Actions host keeps Nix available to the post-upgrade hash task. The command allowlist permits only `python3 scripts/update-hashes.py --changed`.

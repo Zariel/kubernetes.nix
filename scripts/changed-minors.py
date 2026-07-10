@@ -8,6 +8,7 @@ from pathlib import Path
 
 
 BUILD_INPUTS = (
+    ".github/workflows/ci.yaml",
     "flake.lock",
     "flake.nix",
     "nix/",
