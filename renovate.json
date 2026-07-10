@@ -1,0 +1,118 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "enabledManagers": [
+    "custom.regex",
+    "github-actions",
+    "nix"
+  ],
+  "nix": {
+    "enabled": true
+  },
+  "dependencyDashboard": false,
+  "prConcurrentLimit": 5,
+  "schedule": [
+    "before 6am"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^versions\\/1\\.\\d+\\.json$/"
+      ],
+      "matchStrings": [
+        "\\\"version\\\"\\s*:\\s*\\\"(?<currentValue>1\\.\\d+\\.\\d+)\\\""
+      ],
+      "depNameTemplate": "kubernetes/kubernetes",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>1\\.\\d+\\.\\d+)$",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.renovate-version$/"
+      ],
+      "matchStrings": [
+        "^(?<currentValue>\\d+\\.\\d+\\.\\d+)\\s*$"
+      ],
+      "depNameTemplate": "renovate",
+      "datasourceTemplate": "npm",
+      "versioningTemplate": "semver"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Kubernetes catalogue entries never cross minor boundaries",
+      "matchDepNames": [
+        "kubernetes/kubernetes"
+      ],
+      "matchUpdateTypes": [
+        "major",
+        "minor"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Refresh the Nix source hash in the same patch-update commit",
+      "matchDepNames": [
+        "kubernetes/kubernetes"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "addLabels": [
+        "automerge",
+        "kubernetes-patch"
+      ],
+      "postUpgradeTasks": {
+        "commands": [
+          "python3 scripts/update-hashes.py --changed"
+        ],
+        "fileFilters": [
+          "versions/*.json"
+        ],
+        "executionMode": "branch"
+      }
+    },
+    {
+      "description": "Keep nixpkgs and GitHub Actions current in isolated PRs",
+      "matchManagers": [
+        "github-actions",
+        "nix"
+      ],
+      "addLabels": [
+        "automerge",
+        "dependencies"
+      ]
+    },
+    {
+      "description": "Keep the self-hosted Renovate CLI current",
+      "matchDepNames": [
+        "renovate"
+      ],
+      "addLabels": [
+        "automerge",
+        "dependencies"
+      ]
+    },
+    {
+      "description": "Daily flake lock refreshes are gated and merged automatically",
+      "matchUpdateTypes": [
+        "lockFileMaintenance"
+      ],
+      "addLabels": [
+        "automerge",
+        "nixpkgs"
+      ]
+    }
+  ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "before 5am"
+    ]
+  }
+}

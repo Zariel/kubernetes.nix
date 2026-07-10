@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "23 4 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate and evaluate
+    runs-on: ubuntu-latest
+    outputs:
+      minors: ${{ steps.matrix.outputs.minors }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: DeterminateSystems/nix-installer-action@v22
+      - name: Validate catalogue and append-only history
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            python3 scripts/validate-versions.py --base-ref "$BASE_SHA"
+          else
+            python3 scripts/validate-versions.py
+          fi
+      - name: Test Python automation
+        run: python3 -m unittest discover -s tests -v
+      - name: Validate Renovate configuration
+        run: npx --yes --package "renovate@$(< .renovate-version)" renovate-config-validator
+      - name: Check flake
+        run: nix flake check --print-build-logs
+      - name: Evaluate every supported system
+        run: |
+          nix eval .#packages.x86_64-linux --apply builtins.attrNames --json
+          nix eval .#packages.aarch64-linux --apply builtins.attrNames --json
+      - name: Select build matrix
+        id: matrix
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            minors=$(python3 scripts/changed-minors.py --base "$BASE_SHA")
+          else
+            minors=$(python3 scripts/changed-minors.py --all)
+          fi
+          echo "minors=$minors" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build Kubernetes ${{ matrix.minor }}
+    needs: validate
+    if: needs.validate.outputs.minors != '[]'
+    env:
+      CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      CACHIX_CACHE_NAME: ${{ vars.CACHIX_CACHE_NAME }}
+    strategy:
+      fail-fast: false
+      matrix:
+        minor: ${{ fromJSON(needs.validate.outputs.minors) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: DeterminateSystems/nix-installer-action@v22
+      - name: Configure optional Cachix cache
+        if: env.CACHIX_AUTH_TOKEN != '' && env.CACHIX_CACHE_NAME != ''
+        uses: cachix/cachix-action@v17
+        with:
+          name: ${{ env.CACHIX_CACHE_NAME }}
+          authToken: ${{ env.CACHIX_AUTH_TOKEN }}
+      - name: Build kubeadm, kubelet, and kubectl
+        env:
+          MINOR: ${{ matrix.minor }}
+        run: |
+          attribute="kubernetes_${MINOR//./_}"
+          nix build \
+            ".#$attribute.kubeadm" \
+            ".#$attribute.kubelet" \
+            ".#$attribute.kubectl" \
+            --no-link --print-build-logs
