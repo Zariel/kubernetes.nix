@@ -1,0 +1,66 @@
+name: Discover new Kubernetes minors
+
+on:
+  schedule:
+    - cron: "41 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: discover-new-kubernetes-minors
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate bot token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+      - uses: DeterminateSystems/nix-installer-action@v22
+      - name: Stop when a discovery PR is already open
+        id: existing
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          count=$(gh pr list --head automation/add-kubernetes-minors --state open --json number --jq length)
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+      - name: Discover releases and calculate hashes
+        if: steps.existing.outputs.count == '0'
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          python3 scripts/add-new-minor.py
+          python3 scripts/update-hashes.py --changed
+          python3 scripts/validate-versions.py
+      - name: Open pull request
+        if: steps.existing.outputs.count == '0'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          if [[ -z "$(git status --porcelain -- versions)" ]]; then
+            exit 0
+          fi
+          branch=automation/add-kubernetes-minors
+          git config user.name "kubernetes.nix automation"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add versions
+          git commit -m "kubernetes: add newly released minor"
+          git push --set-upstream origin "$branch"
+          gh label create automerge --color 0e8a16 --description "Merge after CI passes" --force
+          gh label create kubernetes-minor --color 5319e7 --description "New Kubernetes minor" --force
+          gh pr create \
+            --title "kubernetes: add newly released minor" \
+            --body "Automated append-only catalogue update. Source hashes were calculated before opening this PR; CI will build every new package set." \
+            --label automerge \
+            --label kubernetes-minor

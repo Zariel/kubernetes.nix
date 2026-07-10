@@ -1,0 +1,38 @@
+name: Merge passing automation PRs
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+jobs:
+  merge:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate bot token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+      - name: Merge labelled automation PRs for the tested commit
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          gh api "repos/$REPOSITORY/commits/$HEAD_SHA/pulls" --jq '.[] | select(.state == "open") | .number' |
+          while read -r number; do
+            [[ -n "$number" ]] || continue
+            branch=$(gh pr view "$number" --repo "$REPOSITORY" --json headRefName --jq .headRefName)
+            label=$(gh pr view "$number" --repo "$REPOSITORY" --json labels --jq '.labels[] | select(.name == "automerge") | .name')
+            if [[ "$label" == "automerge" && ( "$branch" == renovate/* || "$branch" == automation/* ) ]]; then
+              gh pr merge "$number" --repo "$REPOSITORY" --squash --delete-branch
+            fi
+          done
