@@ -27,15 +27,27 @@ jobs:
           fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}
       - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
-      - name: Stop when a discovery PR is already open
+      - name: Refresh an existing discovery PR
         id: existing
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          count=$(gh pr list --head automation/add-kubernetes-minors --state open --json number --jq length)
-          echo "count=$count" >> "$GITHUB_OUTPUT"
+          number=$(
+            gh pr list \
+              --head automation/add-kubernetes-minors \
+              --state open \
+              --json number \
+              --jq '.[0].number // empty'
+          )
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+          if [[ -n "$number" ]]; then
+            merge_state=$(gh pr view "$number" --json mergeStateStatus --jq .mergeStateStatus)
+            if [[ "$merge_state" == "BEHIND" ]]; then
+              gh pr update-branch "$number"
+            fi
+          fi
       - name: Discover releases and calculate hashes
-        if: steps.existing.outputs.count == '0'
+        if: steps.existing.outputs.number == ''
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
@@ -43,7 +55,7 @@ jobs:
           python3 scripts/update-hashes.py --changed
           python3 scripts/validate-versions.py
       - name: Open pull request
-        if: steps.existing.outputs.count == '0'
+        if: steps.existing.outputs.number == ''
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
@@ -57,10 +69,9 @@ jobs:
           git add versions
           git commit -m "kubernetes: add newly released minor"
           git push --set-upstream origin "$branch"
-          gh label create automerge --color 0e8a16 --description "Merge after CI passes" --force
           gh label create kubernetes-minor --color 5319e7 --description "New Kubernetes minor" --force
-          gh pr create \
+          pr_url=$(gh pr create \
             --title "kubernetes: add newly released minor" \
             --body "Automated append-only catalogue update. Source hashes were calculated before opening this PR; CI will build every new package set." \
-            --label automerge \
-            --label kubernetes-minor
+            --label kubernetes-minor)
+          gh pr merge "$pr_url" --auto --squash
