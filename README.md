@@ -122,7 +122,7 @@ Automation is split into four workflows:
 - `CI` validates JSON and append-only history, checks the flake, and builds changed minors. Pushes, schedules, and manual runs build the full matrix.
 - `Merge passing automation PRs` merges only labelled automation branches after CI succeeds.
 
-Renovate is self-hosted in Actions because its post-upgrade task needs Nix to calculate source hashes. The command allowlist permits only `python3 scripts/update-hashes.py --changed`.
+Renovate runs from the repository's locked nixpkgs input, so its executable is reproducible and normally substituted from `cache.nixos.org`. Running it directly on the Actions host keeps Nix available to the post-upgrade hash task. The command allowlist permits only `python3 scripts/update-hashes.py --changed`.
 
 ## Binary cache
 
