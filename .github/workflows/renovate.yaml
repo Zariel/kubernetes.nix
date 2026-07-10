@@ -24,11 +24,6 @@ jobs:
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
       - uses: actions/checkout@v7
       - uses: DeterminateSystems/nix-installer-action@v22
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-      - name: Install Renovate
-        run: npm install --global "renovate@$(< .renovate-version)"
       - name: Ensure automation labels exist
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -47,4 +42,4 @@ jobs:
           RENOVATE_REPOSITORIES: ${{ github.repository }}
           RENOVATE_REQUIRE_CONFIG: required
           RENOVATE_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: renovate
+        run: nix run --no-write-lock-file --inputs-from . nixpkgs#renovate

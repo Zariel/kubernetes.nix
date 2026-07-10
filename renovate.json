@@ -29,18 +29,6 @@
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>1\\.\\d+\\.\\d+)$",
       "versioningTemplate": "semver"
-    },
-    {
-      "customType": "regex",
-      "managerFilePatterns": [
-        "/^\\.renovate-version$/"
-      ],
-      "matchStrings": [
-        "^(?<currentValue>\\d+\\.\\d+\\.\\d+)\\s*$"
-      ],
-      "depNameTemplate": "renovate",
-      "datasourceTemplate": "npm",
-      "versioningTemplate": "semver"
     }
   ],
   "packageRules": [
@@ -82,16 +70,6 @@
       "matchManagers": [
         "github-actions",
         "nix"
-      ],
-      "addLabels": [
-        "automerge",
-        "dependencies"
-      ]
-    },
-    {
-      "description": "Keep the self-hosted Renovate CLI current",
-      "matchDepNames": [
-        "renovate"
       ],
       "addLabels": [
         "automerge",
