@@ -15,30 +15,46 @@ The operating model is intentionally simple:
 
 This is aimed at kubeadm-managed nodes, where changing Kubernetes minors must be coordinated with version-skew rules, etcd snapshots, CNI and storage compatibility, control-plane upgrades, and kubelet restarts. Following nixpkgs's moving default can change a host package before that lifecycle work is planned; selecting `pkgs.kubernetes_1_36` cannot move the host to 1.37.
 
-## Use the overlay
+## Use as a flake input
 
-Add the flake and make it follow the host's nixpkgs input:
+The following consumer `flake.nix` makes this repository follow the host's nixpkgs input and applies its overlay to a NixOS system:
 
 ```nix
 {
-  inputs.kubernetes-nix.url = "github:Zariel/kubernetes.nix";
-  inputs.kubernetes-nix.inputs.nixpkgs.follows = "nixpkgs";
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+
+    kubernetes-nix = {
+      url = "github:Zariel/kubernetes.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+
+  outputs =
+    { nixpkgs, kubernetes-nix, ... }:
+    {
+      nixosConfigurations.kubernetes-node = nixpkgs.lib.nixosSystem {
+        modules = [
+          {
+            nixpkgs.hostPlatform = "x86_64-linux";
+            nixpkgs.overlays = [ kubernetes-nix.overlays.default ];
+          }
+          ./configuration.nix
+        ];
+      };
+    };
 }
 ```
 
-Then install its overlay and select one minor:
+Then select one minor in `configuration.nix`:
 
 ```nix
-{ inputs, pkgs, ... }:
+{ pkgs, ... }:
 
 let
   k8s = pkgs.kubernetes_1_36;
 in
 {
-  nixpkgs.overlays = [
-    inputs.kubernetes-nix.overlays.default
-  ];
-
   environment.systemPackages = [
     k8s.kubeadm
     k8s.kubectl
@@ -52,7 +68,7 @@ in
 }
 ```
 
-Because NixOS module arguments are evaluated before option definitions, ensure the overlay is applied in the system's nixpkgs construction (or through a module imported before `pkgs` is created). If that is awkward, use the flake packages directly through `inputs.kubernetes-nix.packages.${pkgs.system}`.
+If a system constructs and passes its own `pkgs` instance to `nixosSystem`, add the overlay to that nixpkgs import instead. Alternatively, use the flake packages directly through `inputs.kubernetes-nix.packages.${pkgs.system}`.
 
 Every version set contains four derivations:
 
@@ -110,7 +126,20 @@ Renovate is self-hosted in Actions because its post-upgrade task needs Nix to ca
 
 ## Binary cache
 
-The normal Nix cache remains enabled. To use Cachix for these relatively expensive builds, set the repository variable `CACHIX_CACHE_NAME`. CI and fork pull requests can then read from a public cache without a secret. Add the `CACHIX_AUTH_TOKEN` repository secret to publish successful builds from trusted branches and same-repository automation PRs. Consumers can configure the cache documented by that Cachix instance as an extra substituter and trusted public key. A binary cache is recommended but not required; GitHub's generic dependency cache is deliberately not used for `/nix/store`.
+Prebuilt packages are published to the public `zariel` Cachix cache. NixOS consumers can enable it declaratively:
+
+```nix
+{
+  nix.settings = {
+    extra-substituters = [ "https://zariel.cachix.org" ];
+    extra-trusted-public-keys = [
+      "zariel.cachix.org-1:dh6rKTuFoqFU6PW4VWKtaTPXMXzOLUeThjOKi3Yps48="
+    ];
+  };
+}
+```
+
+On other Nix systems with Cachix installed, run `cachix use zariel`. The cache is optional; Nix builds locally when a substitute is unavailable. Cache hits require the package derivation inputs to match, so consumers that make this flake follow a different nixpkgs revision may still need to build locally.
 
 ## Local development
 
