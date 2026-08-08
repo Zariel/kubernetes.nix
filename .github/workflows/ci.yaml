@@ -27,6 +27,8 @@ jobs:
         with:
           fetch-depth: 0
       - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          determinate: false
       - name: Validate catalogue and append-only history
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -38,6 +40,10 @@ jobs:
           fi
       - name: Test Python automation
         run: python3 -m unittest discover -s tests -v
+      - name: Lint GitHub Actions workflows
+        run: >-
+          nix shell --no-write-lock-file --inputs-from . nixpkgs#actionlint
+          --command actionlint
       - name: Validate Renovate configuration
         run: >-
           nix shell --no-write-lock-file --inputs-from . nixpkgs#renovate
@@ -75,6 +81,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          determinate: false
       - name: Configure optional Cachix cache
         if: env.CACHIX_CACHE_NAME != ''
         uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
